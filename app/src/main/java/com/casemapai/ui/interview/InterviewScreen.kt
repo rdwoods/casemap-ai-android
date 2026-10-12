@@ -49,10 +49,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.tooling.preview.Preview
 import com.casemapai.data.sample.SampleScenarios
 import com.casemapai.domain.model.interview.CaseFact
 import com.casemapai.domain.model.interview.InterviewQuestion
 import com.casemapai.ui.common.RecommendationCard
+import com.casemapai.ui.theme.CaseMapTheme
 import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -74,6 +76,22 @@ fun InterviewScreen(
         }
     }
 
+    InterviewScreen(
+        state = state,
+        snackbarHostState = snackbarHostState,
+        onBack = onBack,
+        onIntent = viewModel::onIntent
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun InterviewScreen(
+    state: InterviewState,
+    snackbarHostState: SnackbarHostState,
+    onBack: () -> Unit,
+    onIntent: (InterviewIntent) -> Unit
+) {
     Scaffold(
         topBar = {
             TopAppBar(
@@ -82,7 +100,7 @@ fun InterviewScreen(
                 actions = {
                     if (state.phase != InterviewPhase.SEED) {
                         TextButton(
-                            onClick = { viewModel.onIntent(InterviewIntent.Restart) },
+                            onClick = { onIntent(InterviewIntent.Restart) },
                             enabled = !state.isLoading
                         ) { Text("Restart") }
                     }
@@ -98,9 +116,9 @@ fun InterviewScreen(
                 .imePadding()
         ) {
             when (state.phase) {
-                InterviewPhase.SEED -> SeedForm(state = state, onIntent = viewModel::onIntent)
+                InterviewPhase.SEED -> SeedForm(state = state, onIntent = onIntent)
                 InterviewPhase.INTERVIEWING,
-                InterviewPhase.DONE -> InterviewConversation(state = state, onIntent = viewModel::onIntent)
+                InterviewPhase.DONE -> InterviewConversation(state = state, onIntent = onIntent)
             }
         }
     }
@@ -435,5 +453,20 @@ private fun FactSheet(facts: List<CaseFact>) {
                 }
             }
         }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun InterviewScreenPreview() {
+    CaseMapTheme {
+        InterviewScreen(
+            state = InterviewState(
+                seed = SampleScenarios.all[0].seed
+            ),
+            snackbarHostState = remember { SnackbarHostState() },
+            onBack = {},
+            onIntent = {}
+        )
     }
 }
