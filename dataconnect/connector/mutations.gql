@@ -1,0 +1,154 @@
+# Writes are owner-scoped two ways:
+#  - inserts take the user from auth.uid, or verify the parent matter's owner first;
+#  - updates/deletes use *_updateMany / *_deleteMany with an owner filter, so a
+#    guessed id belonging to someone else matches zero rows.
+
+mutation UpsertUser($displayName: String) @auth(level: USER) {
+  user_upsert(data: { id_expr: "auth.uid", displayName: $displayName })
+}
+
+mutation CreateMatter(
+  $title: String!
+  $caseType: String!
+  $posture: String!
+  $summary: String!
+  $goal: String
+) @auth(level: USER) {
+  matter_insert(
+    data: {
+      userId_expr: "auth.uid"
+      title: $title
+      caseType: $caseType
+      posture: $posture
+      summary: $summary
+      goal: $goal
+    }
+  )
+}
+
+mutation UpdateMatterHeader(
+  $id: UUID!
+  $title: String!
+  $posture: String!
+  $summary: String!
+) @auth(level: USER) {
+  matter_updateMany(
+    where: { id: { eq: $id }, user: { id: { eq_expr: "auth.uid" } } }
+    data: { title: $title, posture: $posture, summary: $summary, updatedAt_expr: "request.time" }
+  )
+}
+
+mutation DeleteMatter($id: UUID!) @auth(level: USER) {
+  matter_deleteMany(where: { id: { eq: $id }, user: { id: { eq_expr: "auth.uid" } } })
+}
+
+# ---------- Facts ----------
+
+mutation InsertFact(
+  $matterId: UUID!
+  $label: String!
+  $value: String!
+  $source: String!
+  $position: Int!
+) @auth(level: USER) @transaction {
+  # Refuse to attach a fact to someone else's matter.
+  query @redact {
+    matter(id: $matterId) @check(expr: "this != null", message: "Matter not found") {
+      user {
+        id @check(expr: "this == auth.uid", message: "Matter not found")
+      }
+    }
+  }
+  matterFact_insert(
+    data: { matterId: $matterId, label: $label, value: $value, source: $source, position: $position }
+  )
+}
+
+"An attorney edit. Marks the fact as ATTORNEY so later interviews can't overwrite it."
+mutation UpdateFact($id: UUID!, $label: String!, $value: String!) @auth(level: USER) {
+  matterFact_updateMany(
+    where: { id: { eq: $id }, matter: { user: { id: { eq_expr: "auth.uid" } } } }
+    data: { label: $label, value: $value, source: "ATTORNEY", updatedAt_expr: "request.time" }
+  )
+}
+
+mutation DeleteFact($id: UUID!) @auth(level: USER) {
+  matterFact_deleteMany(
+    where: { id: { eq: $id }, matter: { user: { id: { eq_expr: "auth.uid" } } } }
+  )
+}
+
+"Clears AI-sourced facts before a continued interview's fact sheet is written back."
+mutation DeleteAiFacts($matterId: UUID!) @auth(level: USER) {
+  matterFact_deleteMany(
+    where: {
+      matter: { id: { eq: $matterId }, user: { id: { eq_expr: "auth.uid" } } }
+      source: { eq: "AI" }
+    }
+  )
+}
+
+# ---------- Recommendation ----------
+
+mutation DeleteRecommendation($matterId: UUID!) @auth(level: USER) @transaction {
+  recommendationApproach_deleteMany(
+    where: {
+      recommendation: { matter: { id: { eq: $matterId }, user: { id: { eq_expr: "auth.uid" } } } }
+    }
+  )
+  recommendation_deleteMany(
+    where: { matter: { id: { eq: $matterId }, user: { id: { eq_expr: "auth.uid" } } } }
+  )
+}
+
+mutation InsertRecommendation(
+  $matterId: UUID!
+  $summary: String!
+  $missingFacts: [String!]
+  $verifyBeforeRelying: [String!]
+  $modelName: String
+) @auth(level: USER) @transaction {
+  query @redact {
+    matter(id: $matterId) @check(expr: "this != null", message: "Matter not found") {
+      user {
+        id @check(expr: "this == auth.uid", message: "Matter not found")
+      }
+    }
+  }
+  recommendation_insert(
+    data: {
+      matterId: $matterId
+      summary: $summary
+      missingFacts: $missingFacts
+      verifyBeforeRelying: $verifyBeforeRelying
+      modelName: $modelName
+    }
+  )
+}
+
+mutation InsertApproach(
+  $recommendationId: UUID!
+  $position: Int!
+  $title: String!
+  $rationale: String!
+  $risks: String!
+) @auth(level: USER) @transaction {
+  query @redact {
+    recommendation(id: $recommendationId) @check(expr: "this != null", message: "Not found") {
+      matter {
+        user {
+          id @check(expr: "this == auth.uid", message: "Not found")
+        }
+      }
+    }
+  }
+  recommendationApproach_insert(
+    data: {
+      recommendationId: $recommendationId
+      position: $position
+      title: $title
+      rationale: $rationale
+      risks: $risks
+    }
+  )
+}

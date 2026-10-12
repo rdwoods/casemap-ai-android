@@ -1,0 +1,11 @@
+specVersion: "v1"
+serviceId: "casemapai"
+location: "us-central1"
+schema:
+  source: "./schema"
+  datasource:
+    postgresql:
+      database: "casemapai-db"
+      cloudSql:
+        instanceId: "casemapai-fdc"
+connectorDirs: ["./connector"]

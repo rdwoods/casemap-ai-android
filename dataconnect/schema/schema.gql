@@ -1,0 +1,58 @@
+# CaseMap AI — Data Connect schema
+#
+# A Matter is a short header (title, case type, posture, summary, goal) plus a list of
+# labeled facts. Facts come from the guided interview (source "AI") or from the attorney
+# editing them (source "ATTORNEY"). Attorney edits are authoritative: when an interview
+# is continued, the app re-applies them over whatever the model returns.
+#
+# Every row hangs off a User whose id is the Firebase Auth uid, and every connector
+# operation filters on auth.uid, so one user can never read or change another's matters.
+
+type User @table {
+  id: String! @default(expr: "auth.uid")
+  displayName: String
+  createdAt: Timestamp! @default(expr: "request.time")
+}
+
+type Matter @table {
+  id: UUID! @default(expr: "uuidV4()")
+  user: User!
+  title: String!
+  caseType: String!
+  posture: String!
+  summary: String!
+  goal: String
+  createdAt: Timestamp! @default(expr: "request.time")
+  updatedAt: Timestamp! @default(expr: "request.time")
+}
+
+type MatterFact @table {
+  id: UUID! @default(expr: "uuidV4()")
+  matter: Matter!
+  label: String!
+  value: String!
+  "AI or ATTORNEY"
+  source: String!
+  position: Int!
+  updatedAt: Timestamp! @default(expr: "request.time")
+}
+
+"The most recent strategy recommendation for a matter (one per matter)."
+type Recommendation @table {
+  id: UUID! @default(expr: "uuidV4()")
+  matter: Matter! @unique
+  summary: String!
+  missingFacts: [String!]
+  verifyBeforeRelying: [String!]
+  modelName: String
+  createdAt: Timestamp! @default(expr: "request.time")
+}
+
+type RecommendationApproach @table {
+  id: UUID! @default(expr: "uuidV4()")
+  recommendation: Recommendation!
+  position: Int!
+  title: String!
+  rationale: String!
+  risks: String!
+}
