@@ -13,7 +13,7 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { GoogleGenerativeAI, SchemaType, type ResponseSchema } from "@google/generative-ai";
 import { geminiApiKey } from "./secrets";
 
-const MODEL_NAME = "gemini-2.5-flash";
+const MODEL_NAME = "gemini-3.5-flash-lite";
 
 /** Hard cap on questions. At this many answers the server forces a recommendation. */
 export const MAX_TURNS = 8;
