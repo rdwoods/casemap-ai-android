@@ -1,0 +1,51 @@
+# Every query is scoped to the signed-in user (auth.uid).
+
+query ListMatters @auth(level: USER) {
+  matters(
+    where: { user: { id: { eq_expr: "auth.uid" } } }
+    orderBy: { updatedAt: DESC }
+  ) {
+    id
+    title
+    caseType
+    posture
+    summary
+    updatedAt
+  }
+}
+
+query GetMatter($id: UUID!) @auth(level: USER) {
+  matters(
+    where: { id: { eq: $id }, user: { id: { eq_expr: "auth.uid" } } }
+    limit: 1
+  ) {
+    id
+    title
+    caseType
+    posture
+    summary
+    goal
+    createdAt
+    updatedAt
+    facts: matterFacts_on_matter(orderBy: { position: ASC }) {
+      id
+      label
+      value
+      source
+      position
+    }
+    recommendation: recommendation_on_matter {
+      id
+      summary
+      missingFacts
+      verifyBeforeRelying
+      modelName
+      createdAt
+      approaches: recommendationApproaches_on_recommendation(orderBy: { position: ASC }) {
+        title
+        rationale
+        risks
+      }
+    }
+  }
+}

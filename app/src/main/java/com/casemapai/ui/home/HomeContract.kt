@@ -1,11 +1,10 @@
 package com.casemapai.ui.home
 
-import com.casemapai.dataconnect.GetMatterQuery
-import com.casemapai.domain.model.Matter
+import com.casemapai.domain.model.casefile.CaseFile
 
 data class HomeState(
     val isLoading: Boolean = true,
-    val matters: List<GetMatterQuery.Data.Matter> = emptyList(),
+    val matters: List<CaseFile> = emptyList(),
     val error: String? = null
 )
 

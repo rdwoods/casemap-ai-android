@@ -25,7 +25,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -53,13 +52,15 @@ import androidx.compose.ui.unit.dp
 import com.casemapai.data.sample.SampleScenarios
 import com.casemapai.domain.model.interview.CaseFact
 import com.casemapai.domain.model.interview.InterviewQuestion
-import com.casemapai.domain.model.interview.StrategyRecommendation
+import com.casemapai.ui.common.RecommendationCard
+import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun InterviewScreen(
     viewModel: InterviewViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onMatterSaved: (caseId: UUID, wasUpdate: Boolean) -> Unit
 ) {
     val state by viewModel.state.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -68,6 +69,7 @@ fun InterviewScreen(
         viewModel.effect.collect { effect ->
             when (effect) {
                 is InterviewEffect.ShowMessage -> snackbarHostState.showSnackbar(effect.message)
+                is InterviewEffect.MatterSaved -> onMatterSaved(effect.caseId, effect.wasUpdate)
             }
         }
     }
@@ -75,7 +77,7 @@ fun InterviewScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Strategy Interview") },
+                title = { Text(if (state.isContinuing) "Continue Interview" else "Strategy Interview") },
                 navigationIcon = { TextButton(onClick = onBack) { Text("Back") } },
                 actions = {
                     if (state.phase != InterviewPhase.SEED) {
@@ -255,6 +257,21 @@ private fun InterviewConversation(
 
         state.recommendation?.let { rec ->
             item { RecommendationCard(rec) }
+            item {
+                Button(
+                    onClick = { onIntent(InterviewIntent.SaveMatter) },
+                    enabled = state.canSaveMatter,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        when {
+                            state.isSavingMatter -> "Saving…"
+                            state.isContinuing -> "Update matter"
+                            else -> "Save as matter"
+                        }
+                    )
+                }
+            }
         }
 
         if (state.facts.isNotEmpty()) {
@@ -275,7 +292,14 @@ private fun InterviewConversation(
 @Composable
 private fun ProgressHeader(state: InterviewState) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(state.seed.caseType, style = MaterialTheme.typography.titleMedium)
+        Text(state.existingTitle ?: state.seed.caseType, style = MaterialTheme.typography.titleMedium)
+        if (state.isContinuing && state.transcript.isEmpty()) {
+            Text(
+                "Picking up from ${state.initialFacts.size} saved facts. Your edited facts stay as you left them.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
         val label = if (state.phase == InterviewPhase.DONE) {
             "Done after ${state.transcript.size} questions"
         } else {
@@ -394,61 +418,6 @@ private fun ErrorCard(message: String, onRetry: () -> Unit) {
             )
             TextButton(onClick = onRetry) { Text("Retry") }
         }
-    }
-}
-
-// ---------------- Result ----------------
-
-@Composable
-private fun RecommendationCard(rec: StrategyRecommendation) {
-    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Suggested approach", style = MaterialTheme.typography.titleLarge)
-            Text(rec.summary, style = MaterialTheme.typography.bodyLarge)
-
-            rec.approaches.forEachIndexed { i, approach ->
-                HorizontalDivider()
-                Text("${i + 1}. ${approach.title}", style = MaterialTheme.typography.titleMedium)
-                Text(approach.rationale, style = MaterialTheme.typography.bodyMedium)
-                if (approach.risks.isNotBlank()) {
-                    Text(
-                        "Risk: ${approach.risks}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            if (rec.missingFacts.isNotEmpty()) {
-                HorizontalDivider()
-                BulletSection("Facts that could change this", rec.missingFacts)
-            }
-
-            if (rec.verifyBeforeRelying.isNotEmpty()) {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(Modifier.padding(12.dp)) {
-                        BulletSection("Verify before relying on this", rec.verifyBeforeRelying)
-                    }
-                }
-            }
-
-            Text(
-                "AI-generated brainstorming. Not legal advice; verify all authority independently.",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
-@Composable
-private fun BulletSection(title: String, items: List<String>) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(title, style = MaterialTheme.typography.titleSmall)
-        items.forEach { Text("• $it", style = MaterialTheme.typography.bodyMedium) }
     }
 }
 

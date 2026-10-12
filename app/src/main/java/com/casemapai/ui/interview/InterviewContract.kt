@@ -6,6 +6,7 @@ import com.casemapai.domain.model.interview.InterviewQuestion
 import com.casemapai.domain.model.interview.InterviewSeed
 import com.casemapai.domain.model.interview.InterviewTurn
 import com.casemapai.domain.model.interview.StrategyRecommendation
+import java.util.UUID
 
 enum class InterviewPhase { SEED, INTERVIEWING, DONE }
 
@@ -38,11 +39,18 @@ data class InterviewState(
     val isLoading: Boolean = false,
     val error: String? = null,
     /** Remembers whether the failed request was a "finish now", so Retry repeats the same thing. */
-    val pendingForceRecommendation: Boolean = false
+    val pendingForceRecommendation: Boolean = false,
+    /** Set when continuing an existing matter; its saved facts seed the interview. */
+    val existingCaseId: UUID? = null,
+    val existingTitle: String? = null,
+    val initialFacts: List<CaseFact> = emptyList(),
+    val isSavingMatter: Boolean = false
 ) {
+    val isContinuing: Boolean get() = existingCaseId != null
     val canStart: Boolean get() = seed.isValid && !isLoading
     val canSubmitCustom: Boolean get() = customAnswer.isNotBlank() && !isLoading && currentQuestion != null
     val canFinishEarly: Boolean get() = phase == InterviewPhase.INTERVIEWING && transcript.isNotEmpty() && !isLoading
+    val canSaveMatter: Boolean get() = phase == InterviewPhase.DONE && recommendation != null && !isSavingMatter
 }
 
 sealed interface InterviewIntent {
@@ -59,8 +67,10 @@ sealed interface InterviewIntent {
     data object FinishNow : InterviewIntent
     data object Retry : InterviewIntent
     data object Restart : InterviewIntent
+    data object SaveMatter : InterviewIntent
 }
 
 sealed interface InterviewEffect {
     data class ShowMessage(val message: String) : InterviewEffect
+    data class MatterSaved(val caseId: UUID, val wasUpdate: Boolean) : InterviewEffect
 }

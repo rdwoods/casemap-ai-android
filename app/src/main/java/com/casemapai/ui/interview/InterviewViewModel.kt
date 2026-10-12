@@ -1,16 +1,52 @@
 package com.casemapai.ui.interview
 
+import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.viewModelScope
 import com.casemapai.domain.model.interview.InterviewStep
+import com.casemapai.domain.usecase.GetCaseFileUseCase
 import com.casemapai.domain.usecase.NextInterviewStepUseCase
+import com.casemapai.domain.usecase.SaveInterviewResultUseCase
 import com.casemapai.ui.mvi.BaseViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
+import java.util.UUID
 import javax.inject.Inject
 
 @HiltViewModel
 class InterviewViewModel @Inject constructor(
-    private val nextInterviewStep: NextInterviewStepUseCase
+    savedStateHandle: SavedStateHandle,
+    private val nextInterviewStep: NextInterviewStepUseCase,
+    private val getCaseFile: GetCaseFileUseCase,
+    private val saveInterviewResult: SaveInterviewResultUseCase
 ) : BaseViewModel<InterviewIntent, InterviewState, InterviewEffect>(InterviewState()) {
+
+    init {
+        savedStateHandle.get<String>(ARG_CASE_ID)?.let { raw ->
+            viewModelScope.launch { continueExisting(UUID.fromString(raw)) }
+        }
+    }
+
+    /** "Continue interview" from a saved matter: preload its seed and facts, then ask the next question. */
+    private suspend fun continueExisting(caseId: UUID) {
+        val file = getCaseFile(caseId)
+        if (file == null) {
+            updateState { copy(error = "Matter not found.") }
+            return
+        }
+        val facts = file.factsForInterview()
+        updateState {
+            copy(
+                seed = file.seed,
+                existingCaseId = file.id,
+                existingTitle = file.title,
+                initialFacts = facts,
+                facts = facts,
+                phase = InterviewPhase.INTERVIEWING
+            )
+        }
+        requestNext(force = false)
+    }
 
     override suspend fun reduce(intent: InterviewIntent) {
         when (intent) {
@@ -28,7 +64,15 @@ class InterviewViewModel @Inject constructor(
             is InterviewIntent.EditAnswer -> rewindTo(intent.index)
             InterviewIntent.FinishNow -> if (state.value.canFinishEarly) requestNext(force = true)
             InterviewIntent.Retry -> requestNext(force = state.value.pendingForceRecommendation)
-            InterviewIntent.Restart -> updateState { InterviewState(seed = seed) }
+            InterviewIntent.Restart -> updateState {
+                InterviewState(
+                    seed = seed,
+                    existingCaseId = existingCaseId,
+                    existingTitle = existingTitle,
+                    initialFacts = initialFacts
+                )
+            }
+            InterviewIntent.SaveMatter -> saveMatter()
         }
     }
 
@@ -46,7 +90,7 @@ class InterviewViewModel @Inject constructor(
 
     private suspend fun start() {
         if (!state.value.canStart) return
-        updateState { copy(phase = InterviewPhase.INTERVIEWING, transcript = emptyList(), facts = emptyList()) }
+        updateState { copy(phase = InterviewPhase.INTERVIEWING, transcript = emptyList(), facts = initialFacts) }
         requestNext(force = false)
     }
 
@@ -125,5 +169,30 @@ class InterviewViewModel @Inject constructor(
                 )
             }
         }
+    }
+
+    private suspend fun saveMatter() {
+        val current = state.value
+        if (!current.canSaveMatter) return
+        updateState { copy(isSavingMatter = true) }
+        try {
+            val id = saveInterviewResult(
+                existingId = current.existingCaseId,
+                seed = current.seed,
+                facts = current.facts,
+                recommendation = current.recommendation
+            )
+            updateState { copy(isSavingMatter = false) }
+            sendEffect(InterviewEffect.MatterSaved(id, wasUpdate = current.existingCaseId != null))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            updateState { copy(isSavingMatter = false) }
+            sendEffect(InterviewEffect.ShowMessage(e.message ?: "Couldn't save the matter."))
+        }
+    }
+
+    companion object {
+        const val ARG_CASE_ID = "caseId"
     }
 }

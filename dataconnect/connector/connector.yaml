@@ -1,0 +1,5 @@
+connectorId: "casemapai"
+generate:
+  kotlinSdk:
+    outputDir: "../../app/src/main/java/com/casemapai/dataconnect/generated"
+    package: "com.casemapai.dataconnect.generated"
