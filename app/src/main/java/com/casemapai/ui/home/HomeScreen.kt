@@ -17,13 +17,19 @@ import java.util.UUID
 fun HomeScreen(
     viewModel: HomeViewModel,
     onCreateMatter: () -> Unit,
+    onStartInterview: () -> Unit,
     onOpenMatter: (UUID) -> Unit
 ) {
     val state by viewModel.state.collectAsState()
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("CaseMap AI") })
+            TopAppBar(
+                title = { Text("CaseMap AI") },
+                actions = {
+                    TextButton(onClick = onStartInterview) { Text("Interview") }
+                }
+            )
         },
         floatingActionButton = {
             FloatingActionButton(onClick = onCreateMatter) {

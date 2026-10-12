@@ -12,6 +12,8 @@ import com.casemapai.ui.analysis.AnalysisResultScreen
 import com.casemapai.ui.analysis.AnalysisViewModel
 import com.casemapai.ui.home.HomeScreen
 import com.casemapai.ui.home.HomeViewModel
+import com.casemapai.ui.interview.InterviewScreen
+import com.casemapai.ui.interview.InterviewViewModel
 import com.casemapai.ui.matter.EditMatterScreen
 import com.casemapai.ui.matter.EditMatterViewModel
 import com.casemapai.ui.matter.MatterDetailScreen
@@ -33,9 +35,18 @@ fun CaseMapNavHost(
             HomeScreen(
                 viewModel = viewModel,
                 onCreateMatter = { navController.navigate(Destination.EditMatter.route) },
+                onStartInterview = { navController.navigate(Destination.Interview.route) },
                 onOpenMatter = { matterId ->
                     navController.navigate(Destination.MatterDetail.createRoute(matterId))
                 }
+            )
+        }
+
+        composable(Destination.Interview.route) {
+            val viewModel: InterviewViewModel = hiltViewModel()
+            InterviewScreen(
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() }
             )
         }
 

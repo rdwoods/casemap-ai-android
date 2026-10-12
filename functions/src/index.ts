@@ -1,11 +1,12 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { defineSecret } from "firebase-functions/params";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import * as admin from "firebase-admin";
+import { geminiApiKey } from "./secrets";
 
 admin.initializeApp();
 
-const geminiApiKey = defineSecret("GEMINI_API_KEY");
+export { guidedInterviewTurn } from "./guidedInterview";
+
 
 export const analyzeWithGemini = onCall(
   {
